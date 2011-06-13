@@ -54,12 +54,39 @@ for(x = 0 ; x < nx ; x++) {
 		theta(x*ny + y) = floor((M_PI_2 + atan(hgrad(x*ny + y) / vgrad(x*ny + y)))/M_PI_4); 
 	}
 }
+
+//Suppression des non-maximums
+
+for(x = 0 ; x < nx ; x++) {
+	for(y = 0 ; y < ny ; y++) {
+		int t = theta(x*ny + y);
+		switch(t) {
+			case 0:
+			case 4: 
+				(x,y-1);(x, y+1)
+				break;
+			case 1:
+				x+1,y+1;x-1,y-1
+				break;
+			case 2:	
+				x+1,x-1;y
+				break;
+			case 3:
+				(x+1,y-1);(x-1,y+1)
+
+				break;
+			default: //erreur
+	
+				break;
+		}
+mask = 0 ;
+else mask = 1;
 /*
 gradient : entre -pi/2 et pi/2
 
 atan + pi/2 entre 0 et pi 
 (a + pi/2)/(pi/4) entre 0 et 4 :
-si = à 0 ou 4
+si = à 0 ou 4 : 0 ou pi
 si = 1 : pi/4
 si = 2 : pi/2
 si = 3 : 3*pi/4
