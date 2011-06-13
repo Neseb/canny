@@ -1,0 +1,66 @@
+gradient : L1 ou L2 ?
+gestion des bords : approximation circulaire, zero-padding ?
+
+
+[réduction du bruit]
+En chaque point :
+Gradient horizontal : hgrad [taille de l'image] = u(x+1,y) - u(x-1,y)
+Gradient vertical : vgrad [taille de l'image] = u(x,y+1) - u(y,y-1))
+Gradient : abs(grad) = abs(vgrad) + abs(hgrad) = abs(u(x+1,y) - u(x-1,y)) + abs(u(x,y+1) - u(y,y-1))
+Direction du gradient = arctan(hgrad/vgrad)
+
+On recherche les maxima de abs(grad)
+
+//u(x,y,nx,ny) = img(x*ny + y);
+
+//Gradient horizontal :
+
+int x,y;
+
+for(y = 0 ; x < ny ; y++) {
+	hgrad(y) = data(ny + y) - data((nx-1)*ny + y); //-1 = nx - 1
+	for(x = 1 ; x < nx -1 ; x++) {
+		hgrad(x*ny + y) = data((x+1)*ny + y) - data((x-1)*ny + y);
+	}
+	hgrad((nx-1)*ny + y) = data(y) - data((nx-2)*ny + y); //nx = 0
+}
+
+//Gradient vertical :
+
+for(x = 0 ; x < nx ; x++) {
+	vgrad(x*ny) = data(x*ny + 1) - data(x*ny + ny-1);
+	for(y = 1 ; y < ny -1 ; y++) {
+		vgrad(x*ny + y) = data(x*ny + y+1 ) - data(x*ny + y-1);
+	}
+	vgrad(x*ny + ny-1) = data(x*ny) - data(x*ny + ny-2);
+}
+
+//Valeur du gradient :
+
+for(x = 0 ; x < nx ; x++) {
+	for(y = 0 ; y < ny ; y++) {
+		grad(x*ny + y) = fabs(hgrad(x*ny + y)) + fabs(vgrad(x*ny + y)); 
+	}
+}
+
+//Direction du gradient :
+
+for(x = 0 ; x < nx ; x++) {
+	for(y = 0 ; y < ny ; y++) {
+// si vgrad est à zero :
+// hgrad neg : -pi/2 sinon pi/2
+// automatiquement fait par atan <3
+//Mais on veut pas (sinon on a pas -pi/4
+		theta(x*ny + y) = floor((M_PI_2 + atan(hgrad(x*ny + y) / vgrad(x*ny + y)))/M_PI_4); 
+	}
+}
+/*
+gradient : entre -pi/2 et pi/2
+
+atan + pi/2 entre 0 et pi 
+(a + pi/2)/(pi/4) entre 0 et 4 :
+si = à 0 ou 4
+si = 1 : pi/4
+si = 2 : pi/2
+si = 3 : 3*pi/4
+*/
