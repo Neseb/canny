@@ -41,7 +41,6 @@ static int cmp_u8(const void *a, const void *b)
 /**
  * @brief main function call
  *
- * The saturation is processed half at both ends of the histogram.
  */
 int main(int argc, char *const *argv)
 {
@@ -122,31 +121,35 @@ for(x = 0 ; x < nx ; x++) {
 		switch(t) {
 			case 0:
 			case 4: 
-				past = data[x*ny + y-1];
-				future = data[x*ny + y+1];
+				fx = x;
+				fy = y-1;
+				px = x;
+				py = y+1; 
 				break;
 			case 1:
-				future = data[[x+1]*ny + y+1];
-				past = data[[x-1]*ny + y-1];
+				fx = x+1;
+				fy = y+1;
+				px = x-1;
+				py = y-1; 
 				break;
 			case 2:	
-				future = data[[x+1]*ny + y];
-				past = data[[x-1]*ny + y];
+				fx = x+1;
+				fy = y;
+				px = x-1;
+				py = y; 
 				break;
 			case 3:
 				fx = x+1;
 				fy = y-1;
 				px = x-1;
-				py = 
-				future = data[x+1,y-1];
-				past = data[x-1,y+1]
+				py = y+1; 
 				break;
 			default: printf("Une couille dans le potage");
 				return;
 				break;
 		}	
 		double future = data[fx,fy];
-		double past = data[px,py]
+		double past = data[px,py];
 		double present = data[x*ny + y];
 		mask[x * ny + y] = (present < past) ? 0 : ((present < future) ? 0 : 1);
 	}
