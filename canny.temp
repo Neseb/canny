@@ -88,20 +88,22 @@ int main(int argc, char *const *argv)
 	for(int x = 0 ; x < nx ; x++) {
 		for(int y = 0 ; y < ny ; y++) {
 			//Gradient horizontal
-			hgrad = (x==0) ? (data[y*nx+1] - data[y*nx]) : ((x==nx-1) ? (data[y*nx+(nx-1)] - data[y*nx+(nx-2)]) : (data[y*nx+(x+1)] - data[y*nx+(x-1)]));
+			hgrad = (x==0) ? (data[ny + y] - data[y]) : ((x==nx-1) ? (data[(nx-1)*ny+y] - data[(nx-2)*ny + y]) : (data[(x+1)*ny + y] - data[(x-1)*ny + y]));
 			//Gradient vertical
-			vgrad = (y==0) ? (data[x+nx] - data[x]) : ((y==ny-1) ? (data[x+nx*(ny-1)] - data[x + nx*(ny-2)]) : (data[y*nx+x+1] - data[y*nx+x-1]));
+			vgrad = (y==0) ? (data[x*ny + 1] - data[x*ny + ny-1]) : ((y==ny-1) ? (data[x*ny] - data[x*ny + ny-2]) : (data[x*ny + y+1 ] - data[x*ny + y-1]));
 			//Norme (L1) du gradient
-			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
+			grad[x*ny + y] = fabs(hgrad) + fabs(vgrad); 
 			//Direction du gradient
 			// si vgrad est à zero :
 			// hgrad neg : -pi/2 sinon pi/2
 			// automatiquement fait par atan <3
 			//Mais on veut pas (sinon on a pas -pi/4
+		
+			mask[x * ny + y] = hgrad; 
 			if(vgrad==0 ) 
-				theta[y*nx+x] = 0; 
+				theta[x*ny + y] = 0; 
 			else
-				theta[y*nx+x] = floor((M_PI_2 + atan(hgrad / vgrad))/M_PI_4);
+				theta[x*ny + y] = floor((M_PI_2 + atan(hgrad / vgrad))/M_PI_4);
 			
 		}
 	}
@@ -110,7 +112,7 @@ int main(int argc, char *const *argv)
 
 	for(int x = 0 ; x < nx ; x++) {
 		for(int y = 0 ; y < ny ; y++) {
-			int t = theta[y*nx+x];
+			int t = theta[x*ny + y];
 			int ex,ey;
 			switch(t) {
 				case 0:
@@ -130,15 +132,14 @@ int main(int argc, char *const *argv)
 					ey = -1;
 					break;
 				default: 
-printf("Une couille dans le potage : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]);
+printf("Une couille dans le potage : \ndirection= %d\ngrad= %g",t,grad[x*ny + y]);
 					 return EXIT_FAILURE;
 			}	
-			double past =  grad[(x-ex)+nx*(y-ey)];
-			double future = grad[(x+ex)+nx*(y+ey)];
-			double present = grad[y*nx+x];
-		//	mask[y*nx+x] = (present < past) ? 0 : ((present < future) ? 0 : data[x*y*nx+x]);
-mask[y*nx + x] = (present < past) ? 0 : ((present < future) ? 0 : HUGE);
-//if(mask[x*y*nx+x]==1) printf("Got one\n");
+			double past =  grad[(x-ex)*ny + (y-ey)];
+			double future = grad[(x+ex)*ny + (y+ey)];
+			double present = grad[x*ny + y];
+			//mask[x * ny + y] = (present < past) ? 0 : ((present < future) ? 0 : data[x*ny + y]);
+//if(mask[x*ny+y]==1) printf("Got one\n");
 
 		}		
 	}

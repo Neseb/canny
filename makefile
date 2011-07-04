@@ -13,7 +13,7 @@ OBJ	= $(CSRC:.c=.o)
 BIN	= canny
 
 COPT	= -O3 -funroll-loops -fomit-frame-pointer
-CFLAGS	= -ansi -pedantic -Wall -Wextra -Werror $(COPT)
+CFLAGS	=  -std=c99 -W -Wall $(COPT)
 
 default: $(BIN)
 
