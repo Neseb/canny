@@ -120,8 +120,8 @@ int main(int argc, char *const *argv)
 	}
 
 	//Suppression des non-maxima
-	mask = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 
+	mask = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			int t = theta[y*nx+x];
@@ -129,20 +129,30 @@ int main(int argc, char *const *argv)
 			switch(t) {
 				case 0:
 					ex = 0;
-					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : 1);
+					if((y==0)||(y==ny-1))
+						ey = 0;
+					else
+						ey = 1;
 					break;
 
 				case 1:
-					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : -1);
-					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : 1);
+					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
+						ex = ey = 0;
+					else
+						ex = -1, ey = 1;
 					break;
 				case 2:	
-					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : 1);
 					ey = 0;
+					if((x==0)||(x==nx-1))
+						ex = 0;
+					else
+						ex = 1;
 					break;
 				case 3:
-					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : 1);
-					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : -1);
+					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
+						ex = ey = 0;
+					else
+						ex = 1, ey = -1;
 					break;
 				default: 
 			printf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]);
@@ -156,7 +166,9 @@ int main(int argc, char *const *argv)
 			double future = grad[(x+ex)+nx*(y+ey)];
 			double present = grad[y*nx+x];
 
-		mask[y*nx + x] = (present < past) ? 0 : ((present < future) ? 0 : HUGE);
+		// Ajouter un moyen de détecter que les variations de gradient sont minimale
+		// Hey dude, isn't that hysteresis filtering ?!
+		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : HUGE);
 		//s_HUGE_data[x*y*nx+x]_
 		}
 	}
