@@ -31,6 +31,7 @@
 #include <math.h>
 
 #include "io_png.h"
+#include "canny.h"
 
 /**
  * @brief unsigned char comparison
@@ -47,8 +48,13 @@
 int main(int argc, char *const *argv)
 {
 	size_t nx, ny;              /* data size */
-	unsigned char *data;        /* input/output data */
-	int channel;
+	unsigned char *input, *mask;        /* input/output data */
+	double *data, *in;
+	//TODO : Pour le moment : ne travaille que sur le premier canal
+	int channel = 1;
+//	int gausSize = 5;
+	//s : sigma, variance du filtre
+	int s = 1;
 
 	/* "-v" option : version info */
 	if (2 <= argc && 0 == strcmp("-v", argv[1]))
@@ -64,96 +70,105 @@ int main(int argc, char *const *argv)
 	}
 
 	/* read the PNG image */
-	if (NULL == (data = read_png_u8_rgb(argv[1], &nx, &ny)))
+	input = read_png_u8_rgb(argv[1], &nx, &ny);
+	if (input == NULL)
 	{
 		fprintf(stderr, "the image could not be properly read\n");
 		return EXIT_FAILURE;
 	}
 
-	//TODO : Pour le moment : ne travaille que sur le premier canal
+	in = xmalloc(sizeof(double) * nx * ny * channel);
 
-	//TODO : filtrage gaussien
+	for(size_t x = 0 ; x < nx ; x++)
+		for(size_t y = 0 ; y < ny ; y++)
+			in[y*nx+x] = input[y*nx+x];
 
-	//TODO : sanity check on the pointers
+	free(input);
+	data = xmalloc(sizeof(double) * nx * ny * channel);
 
-	unsigned char* mask = malloc(sizeof(unsigned char) * nx * ny);
+	//filtrage gaussien	
+	gblur(data, in, nx, ny, channel, s);
 
-	double* grad = malloc(sizeof(double) * nx * ny);
-	int* theta = malloc(sizeof(int) * nx * ny);
+	free(in); 
+
+	double* grad = xmalloc(sizeof(double) * nx * ny);
+	int* theta = xmalloc(sizeof(int) * nx * ny);
 
 	//Valeur du gradient :
 
 	double hgrad,vgrad;
 
-	for(int x = 0 ; x < nx ; x++) {
-		for(int y = 0 ; y < ny ; y++) {
+	for(size_t x = 0 ; x < nx ; x++) {
+		for(size_t y = 0 ; y < ny ; y++) {
 			//Gradient horizontal
-			hgrad = (x==0) ? (data[ny + y] - data[y]) : ((x==nx-1) ? (data[(nx-1)*ny+y] - data[(nx-2)*ny + y]) : (data[(x+1)*ny + y] - data[(x-1)*ny + y]));
+			hgrad = (x==0) ? (data[y*nx+1] - data[y*nx]) : ((x==nx-1) ? (data[y*nx+(nx-1)] - data[y*nx+(nx-2)]) : (data[y*nx+(x+1)] - data[y*nx+(x-1)]));
 			//Gradient vertical
-			vgrad = (y==0) ? (data[x*ny + 1] - data[x*ny + ny-1]) : ((y==ny-1) ? (data[x*ny] - data[x*ny + ny-2]) : (data[x*ny + y+1 ] - data[x*ny + y-1]));
+			vgrad = (y==0) ? (data[x+nx] - data[x]) : ((y==ny-1) ? (data[x+nx*(ny-1)] - data[x + nx*(ny-2)]) : (data[y*nx+x+1] - data[y*nx+x-1]));
 			//Norme (L1) du gradient
-			grad[x*ny + y] = fabs(hgrad) + fabs(vgrad); 
+			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
 			//Direction du gradient
 			// si vgrad est à zero :
 			// hgrad neg : -pi/2 sinon pi/2
 			// automatiquement fait par atan <3
 			//Mais on veut pas (sinon on a pas -pi/4
-		
-			mask[x * ny + y] = hgrad; 
 			if(vgrad==0 ) 
-				theta[x*ny + y] = 0; 
+				theta[y*nx+x] = 0; 
 			else
-				theta[x*ny + y] = floor((M_PI_2 + atan(hgrad / vgrad))/M_PI_4);
+				theta[y*nx+x] = floor((M_PI_2 + atan(hgrad / vgrad))/M_PI_4);
 			
 		}
 	}
 
 	//Suppression des non-maxima
+	mask = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 
-	for(int x = 0 ; x < nx ; x++) {
-		for(int y = 0 ; y < ny ; y++) {
-			int t = theta[x*ny + y];
+	for(size_t x = 0 ; x < nx ; x++) {
+		for(size_t y = 0 ; y < ny ; y++) {
+			int t = theta[y*nx+x];
 			int ex,ey;
 			switch(t) {
 				case 0:
 					ex = 0;
-					ey = 1;
+					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : 1);
 					break;
+
 				case 1:
-					ex = 1;
-					ey = 1;
+					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : -1);
+					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : 1);
 					break;
 				case 2:	
-					ex = 1;
+					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : 1);
 					ey = 0;
 					break;
 				case 3:
-					ex = 1;
-					ey = -1;
+					ex = (x==0) ? 0 : ((x==nx-1) ? 0 : 1);
+					ey = (y==0) ? 0 : ((y==ny-1) ? 0 : -1);
 					break;
 				default: 
-printf("Une couille dans le potage : \ndirection= %d\ngrad= %g",t,grad[x*ny + y]);
+			printf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]);
 					 return EXIT_FAILURE;
 			}	
-			double past =  grad[(x-ex)*ny + (y-ey)];
-			double future = grad[(x+ex)*ny + (y+ey)];
-			double present = grad[x*ny + y];
-			//mask[x * ny + y] = (present < past) ? 0 : ((present < future) ? 0 : data[x*ny + y]);
-//if(mask[x*ny+y]==1) printf("Got one\n");
+			assert((x-ex)+nx*(y-ey) < nx*ny);
 
-		}		
+			assert((x+ex)+nx*(y+ey) < nx*ny);
+		
+			double past = grad[(x-ex)+nx*(y-ey)];
+			double future = grad[(x+ex)+nx*(y+ey)];
+			double present = grad[y*nx+x];
+
+		mask[y*nx + x] = (present < past) ? 0 : ((present < future) ? 0 : HUGE);
+		//s_HUGE_data[x*y*nx+x]_
+		}
 	}
-
-
+	
 	//TODO : rajouter hysteresis
-
-
+	free(grad);
+	free(theta);
+	free(data);
 	/* write the mask as a PNG image */
 	write_png_u8(argv[2], mask, nx, ny, 1);
-
-	free(data);
 	free(mask);
-
+	
 	return EXIT_SUCCESS;
 
 }

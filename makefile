@@ -6,26 +6,28 @@
 # the copyright notice and this notice are preserved.  This file is
 # offered as-is, without any warranty.
 
-CSRC	= io_png.c canny.c
+CC	= cc
+
+CSRC	= src/*.c 
 
 SRC	= $(CSRC)
-OBJ	= $(CSRC:.c=.o)
+HDR	= src/*.h
 BIN	= canny
+
 
 COPT	= -O3 -funroll-loops -fomit-frame-pointer
 CFLAGS	=  -std=c99 -W -Wall $(COPT)
+LIBS	= -lpng -lfftw3 -lm
 
 default: $(BIN)
 
-%.o	: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-canny	: io_png.o canny.o
-	$(CC) $(CFLAGS) -o $@ -lpng $^
-
+canny	: $(SRC) $(HDR)
+	$(CC) $(CFLAGS) -o canny $(LIBS) $(SRC)
+	$(RM) src/*.o	
+	
 .PHONY	: clean distclean
 clean	:
-	$(RM) $(OBJ)
+	$(RM) *.o
 distclean	: clean
 	$(RM) $(BIN)
 

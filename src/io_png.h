@@ -1,4 +1,3 @@
-
 #ifndef _IO_PNG_H
 #define _IO_PNG_H
 
