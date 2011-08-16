@@ -33,6 +33,101 @@
 #include "io_png.h"
 #include "canny.h"
 
+// Gestion des bords par diffusion
+   value(x,y,nx,ny) {
+	if (x<0) 
+
+
+
+}
+// Interpolation bilinéaire spécifique.
+// 
+... bilin(grad,int t,nx,ny, int dir) {
+
+	
+
+	if (t >= -M_PI_2 && t <= 0)
+		if (dir == 1)
+			int f11 = grad[x+y*nx], f12 = grad[x+1 +  ;
+		else
+	
+	else if (t >= 0 &&  t<= M_PI_2) 
+		if (dir == 1)
+
+		else
+
+	else error("U Mad ??!");
+}
+
+static void maxima(double* data, double* grad,int *theta,unsigned char *mask,size_t nx,size_t ny, int channel) {
+	for(size_t x = 0 ; x < nx ; x++) {
+		for(size_t y = 0 ; y < ny ; y++) {
+			int t = theta[y*nx + x];
+		
+			double past = bilin(grad,t,,);			
+			double future = bilin(...);
+			double present = grad[y*nx+x];
+
+		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
+		
+		}
+	}
+}
+
+static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx, size_t ny, int channel) {
+	for(size_t x = 0 ; x < nx ; x++) {
+		for(size_t y = 0 ; y < ny ; y++) {
+			int t = floor((M_PI_2 + theta[y*nx+x])/M_PI_4);
+			int ex,ey;
+			switch(t) {
+				case 0:
+					ex = 0;
+					if((y==0)||(y==ny-1))
+						ey = 0;
+					else
+						ey = 1;
+					break;
+
+				case 1:
+					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
+						ex = ey = 0;
+					else
+						ex = -1, ey = 1;
+					break;
+				case 2:	
+					ey = 0;
+					if((x==0)||(x==nx-1))
+						ex = 0;
+					else
+						ex = 1;
+					break;
+				case 3:
+					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
+						ex = ey = 0;
+					else
+						ex = 1, ey = -1;
+					break;
+				default: 
+					 error(sprintf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]));
+			}	
+			assert((x-ex)+nx*(y-ey) < nx*ny);
+
+			assert((x+ex)+nx*(y+ey) < nx*ny);
+		
+			double past = grad[(x-ex)+nx*(y-ey)];
+			double future = grad[(x+ex)+nx*(y+ey)];
+			double present = grad[y*nx+x];
+
+		// Ajouter un moyen de détecter que les variations de gradient sont minimale
+		// Hey dude, isn't that hysteresis filtering ?!
+		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
+		//s_HUGE_data[y*nx+x]_
+		//s_HUGE_grad[y*nx+x]_
+		
+		}
+	}
+}
+
 /**
  * @brief unsigned char comparison
 
@@ -110,11 +205,11 @@ int main(int argc, char *const *argv)
 			// si vgrad est à zero :
 			// hgrad neg : -pi/2 sinon pi/2
 			// automatiquement fait par atan <3
-			//Mais on veut pas (sinon on a pas -pi/4
-			if(vgrad==0 ) 
-				theta[y*nx+x] = 0; 
+			//Mais on veut pas (sinon on a pas -pi/4)
+			if(vgrad==0)
+				theta[y*nx+x] = M_PI_2; 
 			else
-				theta[y*nx+x] = floor((M_PI_2 + atan(hgrad / vgrad))/M_PI_4);
+				theta[y*nx+x] = atan(hgrad / vgrad);
 			
 		}
 	}
@@ -122,56 +217,10 @@ int main(int argc, char *const *argv)
 	//Suppression des non-maxima
 
 	mask = xmalloc(sizeof(unsigned char) * nx * ny * channel);
-	for(size_t x = 0 ; x < nx ; x++) {
-		for(size_t y = 0 ; y < ny ; y++) {
-			int t = theta[y*nx+x];
-			int ex,ey;
-			switch(t) {
-				case 0:
-					ex = 0;
-					if((y==0)||(y==ny-1))
-						ey = 0;
-					else
-						ey = 1;
-					break;
 
-				case 1:
-					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
-						ex = ey = 0;
-					else
-						ex = -1, ey = 1;
-					break;
-				case 2:	
-					ey = 0;
-					if((x==0)||(x==nx-1))
-						ex = 0;
-					else
-						ex = 1;
-					break;
-				case 3:
-					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
-						ex = ey = 0;
-					else
-						ex = 1, ey = -1;
-					break;
-				default: 
-			printf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]);
-					 return EXIT_FAILURE;
-			}	
-			assert((x-ex)+nx*(y-ey) < nx*ny);
+	maxima(grad,theta,mask,nx,ny,channel);
 
-			assert((x+ex)+nx*(y+ey) < nx*ny);
-		
-			double past = grad[(x-ex)+nx*(y-ey)];
-			double future = grad[(x+ex)+nx*(y+ey)];
-			double present = grad[y*nx+x];
 
-		// Ajouter un moyen de détecter que les variations de gradient sont minimale
-		// Hey dude, isn't that hysteresis filtering ?!
-		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : HUGE);
-		//s_HUGE_data[x*y*nx+x]_
-		}
-	}
 	
 	//TODO : rajouter hysteresis
 	free(grad);
