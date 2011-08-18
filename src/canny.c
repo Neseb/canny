@@ -34,47 +34,64 @@
 #include "canny.h"
 
 // Gestion des bords par diffusion
-   value(x,y,nx,ny) {
-	if (x<0) 
-
-
+double value(double* array, int x, int y, size_t nx, size_t ny) {
+	//Prolongement miroir
+	int xt, yt;
+	if (x < 0) 
+		xt = -x;
+	else 
+		if (x > nx -1) 
+			xt = 2*nx - 2 - x;
+		else 
+			xt = x;
+	if (y < 0) 
+		yt = -y;
+	else 
+		if (y > ny - 1) 
+			yt = 2*ny - 2 - y;
+		else 
+			yt = y;
+	return array[xt + nx*yt];
 
 }
 // Interpolation bilinéaire spécifique.
 // 
-... bilin(grad,int t,nx,ny, int dir) {
+double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, int dir) {
 
-	
+	double x1,x2,xt,y1,y2,yt;
 
-	if (t >= -M_PI_2 && t <= 0)
-		if (dir == 1)
-			int f11 = grad[x+y*nx], f12 = grad[x+1 +  ;
-		else
-	
-	else if (t >= 0 &&  t<= M_PI_2) 
-		if (dir == 1)
+	xt = dir * cos(t);
+	yt = dir * sin(t);	
 
-		else
+	x1 = floor(xt), x2 = x1 + 1;
+	y1 = floor(yt), y2 = y1 + 1;
 
-	else error("U Mad ??!");
+
+	double temp = value(grad,x+x1,y+y1,nx,ny)*(x2-xt)*(y2-yt)
+		- value(grad,x+x2,y+y1,nx,ny)*(x1-xt)*(y2-yt)
+		-  value(grad,x+x1,y+y2,nx,ny)*(x2-xt)*(y1-yt)
+		+  value(grad,x+x2,y+y2,nx,ny)*(x1-xt)*(y1-yt);
+
+	return temp;
+
 }
 
-static void maxima(double* data, double* grad,int *theta,unsigned char *mask,size_t nx,size_t ny, int channel) {
+static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int channel) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
-			int t = theta[y*nx + x];
-		
-			double past = bilin(grad,t,,);			
-			double future = bilin(...);
+			double t = theta[y*nx + x];
+
+			double past = bilin(grad,t,x,y,nx,ny,-1);			
+			double future = bilin(grad,t,x,y,nx,ny,1);			
 			double present = grad[y*nx+x];
 
-		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
-		
+			output[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
+
 		}
 	}
 }
 
-static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx, size_t ny, int channel) {
+/*static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx, size_t ny, int channel) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			int t = floor((M_PI_2 + theta[y*nx+x])/M_PI_4);
@@ -108,25 +125,25 @@ static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx
 						ex = 1, ey = -1;
 					break;
 				default: 
-					 error(sprintf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]));
+					error(sprintf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]));
 			}	
 			assert((x-ex)+nx*(y-ey) < nx*ny);
 
 			assert((x+ex)+nx*(y+ey) < nx*ny);
-		
+
 			double past = grad[(x-ex)+nx*(y-ey)];
 			double future = grad[(x+ex)+nx*(y+ey)];
 			double present = grad[y*nx+x];
 
-		// Ajouter un moyen de détecter que les variations de gradient sont minimale
-		// Hey dude, isn't that hysteresis filtering ?!
-		mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
-		//s_HUGE_data[y*nx+x]_
-		//s_HUGE_grad[y*nx+x]_
-		
+			// Ajouter un moyen de détecter que les variations de gradient sont minimale
+			// Hey dude, isn't that hysteresis filtering ?!
+			mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
+			//s_HUGE_data[y*nx+x]_
+			//s_HUGE_grad[y*nx+x]_
+
 		}
 	}
-}
+}*/
 
 /**
  * @brief unsigned char comparison
@@ -143,11 +160,10 @@ static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx
 int main(int argc, char *const *argv)
 {
 	size_t nx, ny;              /* data size */
-	unsigned char *input, *mask;        /* input/output data */
-	double *data, *in;
+	unsigned char *input, *output;        /* input/output data */
 	//TODO : Pour le moment : ne travaille que sur le premier canal
 	int channel = 1;
-//	int gausSize = 5;
+	//	int gausSize = 5;
 	//s : sigma, variance du filtre
 	int s = 1;
 
@@ -172,14 +188,14 @@ int main(int argc, char *const *argv)
 		return EXIT_FAILURE;
 	}
 
-	in = xmalloc(sizeof(double) * nx * ny * channel);
+	double* in = xmalloc(sizeof(double) * nx * ny * channel);
 
 	for(size_t x = 0 ; x < nx ; x++)
 		for(size_t y = 0 ; y < ny ; y++)
 			in[y*nx+x] = input[y*nx+x];
 
 	free(input);
-	data = xmalloc(sizeof(double) * nx * ny * channel);
+	double* data = xmalloc(sizeof(double) * nx * ny * channel);
 
 	//filtrage gaussien	
 	gblur(data, in, nx, ny, channel, s);
@@ -187,7 +203,7 @@ int main(int argc, char *const *argv)
 	free(in); 
 
 	double* grad = xmalloc(sizeof(double) * nx * ny);
-	int* theta = xmalloc(sizeof(int) * nx * ny);
+	double* theta = xmalloc(sizeof(double) * nx * ny);
 
 	//Valeur du gradient :
 
@@ -196,9 +212,9 @@ int main(int argc, char *const *argv)
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			//Gradient horizontal
-			hgrad = (x==0) ? (data[y*nx+1] - data[y*nx]) : ((x==nx-1) ? (data[y*nx+(nx-1)] - data[y*nx+(nx-2)]) : (data[y*nx+(x+1)] - data[y*nx+(x-1)]));
+			hgrad = value(data,x+1,y,nx,ny) - value(data,x-1,y,nx,ny);
 			//Gradient vertical
-			vgrad = (y==0) ? (data[x+nx] - data[x]) : ((y==ny-1) ? (data[x+nx*(ny-1)] - data[x + nx*(ny-2)]) : (data[y*nx+x+1] - data[y*nx+x-1]));
+			vgrad = value(data,x,y+1,nx,ny) - value(data,x,y-1,nx,ny);
 			//Norme (L1) du gradient
 			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
 			//Direction du gradient
@@ -210,26 +226,28 @@ int main(int argc, char *const *argv)
 				theta[y*nx+x] = M_PI_2; 
 			else
 				theta[y*nx+x] = atan(hgrad / vgrad);
-			
+
 		}
 	}
 
 	//Suppression des non-maxima
 
-	mask = xmalloc(sizeof(unsigned char) * nx * ny * channel);
+	output = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 
-	maxima(grad,theta,mask,nx,ny,channel);
+	maxima(grad,theta,output,nx,ny,channel);
 
 
-	
+
 	//TODO : rajouter hysteresis
+
 	free(grad);
 	free(theta);
 	free(data);
+
 	/* write the mask as a PNG image */
-	write_png_u8(argv[2], mask, nx, ny, 1);
-	free(mask);
-	
+	write_png_u8(argv[2], output, nx, ny, 1);
+	free(output);
+
 	return EXIT_SUCCESS;
 
 }
