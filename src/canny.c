@@ -31,6 +31,7 @@
 #include <math.h>
 
 #include "io_png.h"
+#include "length_dsf.h"
 #include "canny.h"
 
 // Gestion des bords par diffusion
@@ -235,8 +236,34 @@ int main(int argc, char *const *argv)
 	output = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 
 	maxima(grad,theta,output,nx,ny,channel);
+	
 
+// on applique le seuil bas, on construit l'arbre, on applique le seuil haut
+// seuil haut puis seuil bas
+// les deux mélangés
 
+	int N = nx*ny;
+	int t[N];
+	int size[N];
+	asdf_begin(t,N,size);
+	for(int d = 0 ; d < N ; d++) {
+	
+		asdf_union(t,N,d, .., size);
+		ajouter d à ses voisins
+	}
+	asdf_assert_consistency(t,N,size);
+	for(int d = 0 ; d < N ; d++) {
+	
+	si d < seuil bas
+			effacer
+		if(size[asdf_find(t,N,d)])  < seuil haut
+			output[d] = 0;
+			pour c < N 
+				si père(c) = d pere(c) = pere(d);
+			père(d) = d; 
+			
+		sinon garder
+	}
 
 	//TODO : rajouter hysteresis
 
