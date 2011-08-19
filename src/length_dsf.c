@@ -9,7 +9,7 @@ void adsf_assert_consistency(int *t, int n, int* size)
 	for (int i = 0; i < n; i++) {
 		assert(t[i] >= 0);
 		assert(t[i] < n);
-		assert(size[t[i]] < size[i]);
+		assert(size[t[i]] >= size[i]);
 	}
 }
 

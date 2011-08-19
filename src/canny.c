@@ -35,7 +35,7 @@
 #include "canny.h"
 
 // Gestion des bords par diffusion
-double value(double* array, int x, int y, size_t nx, size_t ny) {
+int value(int x, int y, size_t nx, size_t ny) {
 	//Prolongement miroir
 	int xt, yt;
 	if (x < 0) 
@@ -52,7 +52,7 @@ double value(double* array, int x, int y, size_t nx, size_t ny) {
 			yt = 2*ny - 2 - y;
 		else 
 			yt = y;
-	return array[xt + nx*yt];
+	return xt + nx*yt;
 
 }
 // Interpolation bilinéaire spécifique.
@@ -68,10 +68,10 @@ double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, i
 	y1 = floor(yt), y2 = y1 + 1;
 
 
-	double temp = value(grad,x+x1,y+y1,nx,ny)*(x2-xt)*(y2-yt)
-		- value(grad,x+x2,y+y1,nx,ny)*(x1-xt)*(y2-yt)
-		-  value(grad,x+x1,y+y2,nx,ny)*(x2-xt)*(y1-yt)
-		+  value(grad,x+x2,y+y2,nx,ny)*(x1-xt)*(y1-yt);
+	double temp = grad[value(x+x1,y+y1,nx,ny)]*(x2-xt)*(y2-yt)
+		- grad[value(x+x2,y+y1,nx,ny)]*(x1-xt)*(y2-yt)
+		- grad[value(x+x1,y+y2,nx,ny)]*(x2-xt)*(y1-yt)
+		+ grad[value(x+x2,y+y2,nx,ny)]*(x1-xt)*(y1-yt);
 
 	return temp;
 
@@ -82,11 +82,12 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 		for(size_t y = 0 ; y < ny ; y++) {
 			double t = theta[y*nx + x];
 
-			double past = bilin(grad,t,x,y,nx,ny,-1);			
-			double future = bilin(grad,t,x,y,nx,ny,1);			
-			double present = grad[y*nx+x];
+			double prev = bilin(grad,t,x,y,nx,ny,-1);			
+			double next = bilin(grad,t,x,y,nx,ny,1);			
+			double now = grad[y*nx+x];
 
-			output[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
+			output[y*nx + x] = (now <= prev) ? 0 : ((now <= next) ? 0 : HUGE);
+//grad[y*nx+x]);
 
 		}
 	}
@@ -213,9 +214,9 @@ int main(int argc, char *const *argv)
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			//Gradient horizontal
-			hgrad = value(data,x+1,y,nx,ny) - value(data,x-1,y,nx,ny);
+			hgrad = data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)];
 			//Gradient vertical
-			vgrad = value(data,x,y+1,nx,ny) - value(data,x,y-1,nx,ny);
+			vgrad = data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)];
 			//Norme (L1) du gradient
 			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
 			//Direction du gradient
@@ -238,34 +239,40 @@ int main(int argc, char *const *argv)
 	maxima(grad,theta,output,nx,ny,channel);
 	
 
-// on applique le seuil bas, on construit l'arbre, on applique le seuil haut
+// seuil bas, on construit l'arbre, seuil haut
 // seuil haut puis seuil bas
 // les deux mélangés
-
+	double seuil_bas=5, seuil_haut = 10;
+	
 	int N = nx*ny;
+	
+
+	for(int d = 0 ; d < N ; d++)
+		if(grad[d] <= seuil_bas && output[d])
+			output[d] = 0;
+			
+
 	int t[N];
 	int size[N];
-	asdf_begin(t,N,size);
-	for(int d = 0 ; d < N ; d++) {
-	
-		asdf_union(t,N,d, .., size);
-		ajouter d à ses voisins
-	}
-	asdf_assert_consistency(t,N,size);
-	for(int d = 0 ; d < N ; d++) {
-	
-	si d < seuil bas
-			effacer
-		if(size[asdf_find(t,N,d)])  < seuil haut
-			output[d] = 0;
-			pour c < N 
-				si père(c) = d pere(c) = pere(d);
-			père(d) = d; 
-			
-		sinon garder
-	}
+	adsf_begin(t,N,size);
+	for(size_t x = 0 ; x < nx ; x++) 
+		for(size_t y = 0 ; y < ny ; y++) {
+			int d = x + nx * y;
+			if(output[d])
+				for(int ex = -1 ; ex < 2 ; ex++)
+					for(int ey = -1 ; ey < 2 ; ey++) {
+						int ed = value(x+ex,y+ey,nx,ny);
+						if(output[ed])	                                       
+							adsf_union(t,N,d, ed, size);
+					}
+		}
 
-	//TODO : rajouter hysteresis
+	adsf_assert_consistency(t,N,size);
+	for(int d = 0 ; d < N ; d++) 
+		if(size[adsf_find(t,N,d)]  < seuil_haut) 
+			output[d] = 0;
+
+	
 
 	free(grad);
 	free(theta);
