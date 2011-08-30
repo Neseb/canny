@@ -77,7 +77,7 @@ double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, i
 
 }
 
-static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int channel) {
+static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int channel, int seuil_bas,int seuil_haut) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			double t = theta[y*nx + x];
@@ -86,75 +86,17 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 			double next = bilin(grad,t,x,y,nx,ny,1);			
 			double now = grad[y*nx+x];
 
-			output[y*nx + x] = (now <= prev) ? 0 : ((now <= next) ? 0 : HUGE);
-//grad[y*nx+x]);
-
+			if ((now <= prev) || (now <= next) || (now <= seuil_bas))
+				output[y*nx + x] = 0;
+			else if (now >= seuil_haut)
+				output[y*nx + x] = 2;
+			else 
+				output[y*nx + x] = 1;
+			//grad[y*nx+x]);
 		}
 	}
 }
 
-/*static void maxima_dumb(double* grad, int *theta, unsigned char *mask, size_t nx, size_t ny, int channel) {
-	for(size_t x = 0 ; x < nx ; x++) {
-		for(size_t y = 0 ; y < ny ; y++) {
-			int t = floor((M_PI_2 + theta[y*nx+x])/M_PI_4);
-			int ex,ey;
-			switch(t) {
-				case 0:
-					ex = 0;
-					if((y==0)||(y==ny-1))
-						ey = 0;
-					else
-						ey = 1;
-					break;
-
-				case 1:
-					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
-						ex = ey = 0;
-					else
-						ex = -1, ey = 1;
-					break;
-				case 2:	
-					ey = 0;
-					if((x==0)||(x==nx-1))
-						ex = 0;
-					else
-						ex = 1;
-					break;
-				case 3:
-					if((x==0)||(y==0)||(x==nx-1)||(y==ny-1))
-						ex = ey = 0;
-					else
-						ex = 1, ey = -1;
-					break;
-				default: 
-					error(sprintf("Erreur : \ndirection= %d\ngrad= %g",t,grad[y*nx+x]));
-			}	
-			assert((x-ex)+nx*(y-ey) < nx*ny);
-
-			assert((x+ex)+nx*(y+ey) < nx*ny);
-
-			double past = grad[(x-ex)+nx*(y-ey)];
-			double future = grad[(x+ex)+nx*(y+ey)];
-			double present = grad[y*nx+x];
-
-			// Ajouter un moyen de détecter que les variations de gradient sont minimale
-			// Hey dude, isn't that hysteresis filtering ?!
-			mask[y*nx + x] = (present <= past) ? 0 : ((present <= future) ? 0 : grad[y*nx+x]);
-			//s_HUGE_data[y*nx+x]_
-			//s_HUGE_grad[y*nx+x]_
-
-		}
-	}
-}*/
-
-/**
- * @brief unsigned char comparison
-
- static int cmp_u8(const void *a, const void *b)
- {
- return (int) (*(const unsigned char *) a - *(const unsigned char *) b);
- }
- */
 /**
  * @brief main function call
  *
@@ -236,42 +178,46 @@ int main(int argc, char *const *argv)
 
 	output = xmalloc(sizeof(unsigned char) * nx * ny * channel);
 
-	maxima(grad,theta,output,nx,ny,channel);
-	
-
 // seuil bas, on construit l'arbre, seuil haut
 // seuil haut puis seuil bas
 // les deux mélangés
-	double seuil_bas=5, seuil_haut = 10;
+	double seuil_bas=4, seuil_haut = 5;
+
+	maxima(grad,theta,output,nx,ny,channel,seuil_bas,seuil_haut);
 	
 	int N = nx*ny;
-	
-
-	for(int d = 0 ; d < N ; d++)
-		if(grad[d] <= seuil_bas && output[d])
-			output[d] = 0;
-			
 
 	int t[N];
 	int size[N];
 	adsf_begin(t,N,size);
+
+	// On construit les arbres
 	for(size_t x = 0 ; x < nx ; x++) 
 		for(size_t y = 0 ; y < ny ; y++) {
 			int d = x + nx * y;
-			if(output[d])
+			if(output[d]) {
 				for(int ex = -1 ; ex < 2 ; ex++)
-					for(int ey = -1 ; ey < 2 ; ey++) {
-						int ed = value(x+ex,y+ey,nx,ny);
-						if(output[ed])	                                       
-							adsf_union(t,N,d, ed, size);
-					}
+				for(int ey = -1 ; ey < 2 ; ey++) {
+					int ed = value(x+ex,y+ey,nx,ny);
+					if(output[ed])	                                       
+						adsf_union(t,N,d, ed, size);
+				}
+			}
 		}
 
-	adsf_assert_consistency(t,N,size);
-	for(int d = 0 ; d < N ; d++) 
-		if(size[adsf_find(t,N,d)]  < seuil_haut) 
-			output[d] = 0;
+	// On marque tous les arbres dont un noeuds est plus grand que le seuil_haut
+	for(int d = 0 ; d < N ; d++)
+		if(output[d] == 2)
+			output[adsf_find(t,N,d)] = 2;
 
+	adsf_assert_consistency(t,N,size);
+	
+	// On supprime tous les arbres dont la racine n'est pas marquée
+	for(int d = 0 ; d < N ; d++) 
+		if(output[adsf_find(t,N,d)]  < 2) 
+			output[d] = 0;
+		else
+			output[d] = HUGE;
 	
 
 	free(grad);
