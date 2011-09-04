@@ -41,14 +41,14 @@ int value(int x, int y, size_t nx, size_t ny) {
 	if (x < 0) 
 		xt = -x;
 	else 
-		if (x > nx -1) 
+		if (x > (int)nx -1) 
 			xt = 2*nx - 2 - x;
 		else 
 			xt = x;
 	if (y < 0) 
 		yt = -y;
 	else 
-		if (y > ny - 1) 
+		if (y > (int)ny - 1) 
 			yt = 2*ny - 2 - y;
 		else 
 			yt = y;
@@ -97,6 +97,17 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 	}
 }
 
+static const char *help =
+	"lost_train usage:\n"
+	"\t-h | --help          Display this help message\n"
+	"\t-v | --version	Display the version of this program\n"
+	"\t-s | --sigma   DBLE  Gaussian filter's variance\n"
+	"\t-lt	          DBLE  Low threshold\n"
+	"\t-ht	          DBLE 	High threshold\n"
+	"\t-i | --input   FILE  Input file\n"
+	"\t-o | --output  FILE  Output file\n"
+	;
+
 /**
  * @brief main function call
  *
@@ -104,33 +115,80 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 int main(int argc, char *const *argv)
 {
 	size_t nx, ny;              /* data size */
-	unsigned char *input, *output;        /* input/output data */
+	char *input_file = '\0', *output_file = '\0'; //Name of the files
+	unsigned char *input = NULL, *output = NULL;        /* input/output data */
 	//TODO : Pour le moment : ne travaille que sur le premier canal
 	int channel = 1;
-	//	int gausSize = 5;
 	//s : sigma, variance du filtre
-	int s = 1;
+	int s = 10;
+	double seuil_bas=4, seuil_haut = 5;
 
-	/* "-v" option : version info */
-	if (2 <= argc && 0 == strcmp("-v", argv[1]))
-	{
-		fprintf(stdout, "%s version " __DATE__ "\n", argv[0]);
-		return EXIT_SUCCESS;
-	}
-	/* wrong number of parameters : simple help info */
-	if (3 != argc)
-	{
-		fprintf(stderr, "usage : %s in.png out.png\n", argv[0]);
-		return EXIT_FAILURE;
+
+	// First step: parse command line argument and check that parameter
+	// syntax is valid, no check for parameter value vailidity here, just
+	// basic parsing.
+	argc--, argv++;
+	while (argc != 0) {
+		const char *arg = argv[0];
+		if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
+			fprintf(stderr, "%s", help);
+			exit(EXIT_SUCCESS);
+		}
+
+ 		if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
+			fprintf(stdout, "%s version " __DATE__ "\n", argv[0]);
+			exit(EXIT_SUCCESS);
+		}
+	
+		if (!strcmp(arg, "-i") || !strcmp(arg, "--input")) {
+			if (argc == 1)
+				error("missing filename for %s", arg);
+			input_file = argv[1];
+			argc -= 2, argv += 2;
+			continue;
+		}
+		if (!strcmp(arg, "-o") || !strcmp(arg, "--output")) {
+			if (argc == 1)
+				error("missing filename for %s", arg);
+			output_file = argv[1];
+			argc -= 2, argv += 2;
+			continue;
+		}
+		if (!strcmp(arg, "-s") || !strcmp(arg, "--sigma")) {
+			if (argc == 1)
+				error("missing value for %s", arg);
+			s = atol(argv[1]);
+			argc -= 2, argv += 2;
+			continue;
+		}
+		if (!strcmp(arg, "-lt")) {
+			if (argc == 1)
+				error("missing value for %s", arg);
+			seuil_bas = atol(argv[1]);
+			argc -= 2, argv += 2;
+			continue;
+		}
+		if (!strcmp(arg, "-ht")) {
+			if (argc == 1)
+				error("missing value for %s", arg);
+			seuil_haut = atol(argv[1]);
+			argc -= 2, argv += 2;
+			continue;
+		}
 	}
 
+	// Second step: validate the set of parameter to be used in training, we
+	// check here that all needed parameters are sets or have a default and
+	// that the combination of all these make a valid set.
+	if (input_file[0] == '\0')
+		error("Missing input file");
+	if (output_file[0] == '\0')
+		error("Missing output file");
+		
 	/* read the PNG image */
-	input = read_png_u8_rgb(argv[1], &nx, &ny);
+	input = read_png_u8_rgb(input_file, &nx, &ny);
 	if (input == NULL)
-	{
-		fprintf(stderr, "the image could not be properly read\n");
-		return EXIT_FAILURE;
-	}
+		error("the image could not be properly read");
 
 	double* in = xmalloc(sizeof(double) * nx * ny * channel);
 
@@ -181,7 +239,7 @@ int main(int argc, char *const *argv)
 // seuil bas, on construit l'arbre, seuil haut
 // seuil haut puis seuil bas
 // les deux mélangés
-	double seuil_bas=4, seuil_haut = 5;
+
 
 	maxima(grad,theta,output,nx,ny,channel,seuil_bas,seuil_haut);
 	
@@ -217,7 +275,7 @@ int main(int argc, char *const *argv)
 		if(output[adsf_find(t,N,d)]  < 2) 
 			output[d] = 0;
 		else
-			output[d] = HUGE;
+			output[d] = (char) -1;
 	
 
 	free(grad);
@@ -225,9 +283,10 @@ int main(int argc, char *const *argv)
 	free(data);
 
 	/* write the mask as a PNG image */
-	write_png_u8(argv[2], output, nx, ny, 1);
+	int write  = write_png_u8(output_file, output, nx, ny, 1);
+	if (write == -1)
+		error("the image could not be properly written");
 	free(output);
-
 	return EXIT_SUCCESS;
 
 }
