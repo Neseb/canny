@@ -77,7 +77,8 @@ double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, i
 
 }
 
-static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int channel, int seuil_bas,int seuil_haut) {
+static void maxima(double* grad, double *theta, unsigned char *output, 
+		   size_t nx, size_t ny, int seuil_bas,int seuil_haut) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			double t = theta[y*nx + x];
@@ -114,11 +115,11 @@ static const char *help =
  */
 int main(int argc, char *const *argv)
 {
-	size_t nx, ny;              /* data size */
+	size_t nx, ny, nc;              /* data size */
 	char *input_file = '\0', *output_file = '\0'; //Name of the files
 	unsigned char *input = NULL, *output = NULL;        /* input/output data */
 	//TODO : Pour le moment : ne travaille que sur le premier canal
-	int channel = 1;
+//	int channel = 1;
 	//s : sigma, variance du filtre
 	int s = 10;
 	double seuil_bas=4, seuil_haut = 5;
@@ -186,27 +187,39 @@ int main(int argc, char *const *argv)
 		error("Missing output file");
 		
 	/* read the PNG image */
-	input = read_png_u8_rgb(input_file, &nx, &ny);
+//	input = read_png_u8_rgb(input_file, &nx, &ny);
+	// TODO : use f32 read/write functions
+//	input = read_png_u8(input_file, &nx, &ny, &nc);
+
+	input = read_png_u8_gray(input_file, &nx, &ny);
+nc = 1;
+//	input = read_png_f32(input_file, &nx, &ny, &nc);
 	if (input == NULL)
 		error("the image could not be properly read");
-
-	double* in = xmalloc(sizeof(double) * nx * ny * channel);
-
-	for(size_t x = 0 ; x < nx ; x++)
-		for(size_t y = 0 ; y < ny ; y++)
-			in[y*nx+x] = input[y*nx+x];
-
+printf("%d\n",nc);
+	int N = nx*ny;
+	double* in = xmalloc(sizeof(double) * nx * ny * nc);
+	
+	for(size_t d = 0 ; d < nx*ny*nc; d++) 
+			in[d] = (double) input[d];
+		
 	free(input);
-	double* data = xmalloc(sizeof(double) * nx * ny * channel);
+	double* data = xmalloc(sizeof(double) * nx * ny * nc);
 
 	//filtrage gaussien	
-	gblur(data, in, nx, ny, channel, s);
+	gblur(data, in, nx, ny, nc, s);
 
 	free(in); 
 
 	double* grad = xmalloc(sizeof(double) * nx * ny);
 	double* theta = xmalloc(sizeof(double) * nx * ny);
 
+
+	output = xmalloc(sizeof(unsigned char) * nx * ny);
+
+
+
+for(int c = 0 ; c < nc ; c++) {
 	//Valeur du gradient :
 
 	double hgrad,vgrad;
@@ -214,39 +227,33 @@ int main(int argc, char *const *argv)
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			//Gradient horizontal
-			hgrad = data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)];
+			hgrad = data[value(x+1,y,nx,ny) + c*N] - data[value(x-1,y,nx,ny) + c*N];
 			//Gradient vertical
-			vgrad = data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)];
+			vgrad = data[value(x,y+1,nx,ny) + c*N] - data[value(x,y-1,nx,ny) + c*N];
 			//Norme (L1) du gradient
-			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
+			grad[x + y*nx] = fabs(hgrad) + fabs(vgrad); 
 			//Direction du gradient
 			// si vgrad est à zero :
 			// hgrad neg : -pi/2 sinon pi/2
 			// automatiquement fait par atan <3
 			//Mais on veut pas (sinon on a pas -pi/4)
 			if(vgrad==0)
-				theta[y*nx+x] = M_PI_2; 
+				theta[x + y*nx] = M_PI_2; 
 			else
-				theta[y*nx+x] = atan(hgrad / vgrad);
+				theta[x + y*nx] = atan(hgrad / vgrad);
 
 		}
 	}
 
 	//Suppression des non-maxima
+	// seuil bas, on construit l'arbre, seuil haut 
+	// Pour chaque canal on ajoute à ce qui avait été fait pour les
+	// canaux précédents
+	maxima(grad,theta,output,nx,ny,seuil_bas,seuil_haut);
+}
 
-	output = xmalloc(sizeof(unsigned char) * nx * ny * channel);
-
-// seuil bas, on construit l'arbre, seuil haut
-// seuil haut puis seuil bas
-// les deux mélangés
-
-
-	maxima(grad,theta,output,nx,ny,channel,seuil_bas,seuil_haut);
-	
-	int N = nx*ny;
-
-	int t[N];
-	int size[N];
+	int *t = xmalloc(sizeof(int) * N);
+	int *size = xmalloc(sizeof(int) * N);
 	adsf_begin(t,N,size);
 
 	// On construit les arbres
