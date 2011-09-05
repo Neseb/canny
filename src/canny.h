@@ -7,7 +7,7 @@
 #include <complex.h>
 #include <fftw3.h>
 
-#include "length_dsf.h"
+#include "adsf.h"
 
 void error(const char *fmt, ...);
 void *xmalloc(size_t size);

@@ -112,13 +112,6 @@ static void ifft_2ddouble(double *ifx,  fftw_complex *fx, int w, int h)
 	fftw_cleanup();
 }
 
-//static void pointwise_complex_rmultiplication(fftw_complex *w,
-//		fftw_complex *z, double *x, int n)
-//{
-//	FORI(n)
-//		w[i] = z[i] * x[i];
-//}
-
 static void pointwise_complex_multiplication(fftw_complex *w,
 		fftw_complex *z, fftw_complex *x, int n)
 {

@@ -31,7 +31,7 @@
 #include <math.h>
 
 #include "io_png.h"
-#include "length_dsf.h"
+#include "adsf.h"
 #include "canny.h"
 
 // Gestion des bords par diffusion
@@ -77,7 +77,7 @@ double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, i
 
 }
 
-static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int channel, int seuil_bas,int seuil_haut) {
+static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int seuil_bas,int seuil_haut) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			double t = theta[y*nx + x];
@@ -117,11 +117,9 @@ int main(int argc, char *const *argv)
 	size_t nx, ny;              /* data size */
 	char *input_file = '\0', *output_file = '\0'; //Name of the files
 	unsigned char *input = NULL, *output = NULL;        /* input/output data */
-	//TODO : Pour le moment : ne travaille que sur le premier canal
-	int channel = 1;
 	//s : sigma, variance du filtre
-	int s = 10;
-	double seuil_bas=4, seuil_haut = 5;
+	double s = 2;
+	double seuil_bas=3, seuil_haut = 10;
 
 
 	// First step: parse command line argument and check that parameter
@@ -190,17 +188,16 @@ int main(int argc, char *const *argv)
 	if (input == NULL)
 		error("the image could not be properly read");
 
-	double* in = xmalloc(sizeof(double) * nx * ny * channel);
+	double* in = xmalloc(sizeof(double) * nx * ny);
 
-	for(size_t x = 0 ; x < nx ; x++)
-		for(size_t y = 0 ; y < ny ; y++)
-			in[y*nx+x] = input[y*nx+x];
+	for(size_t d = 0 ; d < nx*ny ; d++)
+			in[d] = (double) input[d];
 
 	free(input);
-	double* data = xmalloc(sizeof(double) * nx * ny * channel);
+	double* data = xmalloc(sizeof(double) * nx * ny);
 
 	//filtrage gaussien	
-	gblur(data, in, nx, ny, channel, s);
+	gblur(data, in, nx, ny, 1, s);
 
 	free(in); 
 
@@ -234,20 +231,20 @@ int main(int argc, char *const *argv)
 
 	//Suppression des non-maxima
 
-	output = xmalloc(sizeof(unsigned char) * nx * ny * channel);
+	output = xmalloc(sizeof(unsigned char) * nx * ny);
 
 // seuil bas, on construit l'arbre, seuil haut
 // seuil haut puis seuil bas
 // les deux mélangés
 
 
-	maxima(grad,theta,output,nx,ny,channel,seuil_bas,seuil_haut);
+	maxima(grad,theta,output,nx,ny,seuil_bas,seuil_haut);
 	
 	int N = nx*ny;
 
-	int t[N];
-	int size[N];
-	adsf_begin(t,N,size);
+	int* t = xmalloc(sizeof(int) * nx * ny);
+
+	adsf_begin(t,N);
 
 	// On construit les arbres
 	for(size_t x = 0 ; x < nx ; x++) 
@@ -258,7 +255,7 @@ int main(int argc, char *const *argv)
 				for(int ey = -1 ; ey < 2 ; ey++) {
 					int ed = value(x+ex,y+ey,nx,ny);
 					if(output[ed])	                                       
-						adsf_union(t,N,d, ed, size);
+						adsf_union(t,N,d,ed);
 				}
 			}
 		}
@@ -268,7 +265,7 @@ int main(int argc, char *const *argv)
 		if(output[d] == 2)
 			output[adsf_find(t,N,d)] = 2;
 
-	adsf_assert_consistency(t,N,size);
+	adsf_assert_consistency(t,N);
 	
 	// On supprime tous les arbres dont la racine n'est pas marquée
 	for(int d = 0 ; d < N ; d++) 
@@ -278,6 +275,7 @@ int main(int argc, char *const *argv)
 			output[d] = (char) -1;
 	
 
+	free(t);
 	free(grad);
 	free(theta);
 	free(data);

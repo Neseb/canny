@@ -1,6 +1,6 @@
 # Copyright 2009, 2010 IPOL Image Processing On Line http://www.ipol.im/
 # Author: Nicolas Limare <nicolas.limare@cmla.ens-cachan.fr>
-#
+# Vincent Maioli <vincent.maioli@crans.org>
 # Copying and distribution of this file, with or without
 # modification, are permitted in any medium without royalty provided
 # the copyright notice and this notice are preserved.  This file is
