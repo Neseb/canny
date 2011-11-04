@@ -1,5 +1,3 @@
-// gaussian blur of a 2D image
-
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -184,27 +182,3 @@ void gblur(double *y, double *x, int w, int h, int pd, double s)
 	free(c);
 	free(gc);
 }
-/*
-int main(int c, char *v[])
-{
-	if (c != 2 && c != 3 && c != 4) {
-		fprintf(stderr, "usage:\n\t%s s [in [out]]\n", *v);
-		//                          0 1  2   3
-		return EXIT_FAILURE;
-	}
-	double s = atof(v[1]);
-	if (!s || !isfinite(s)) error("bad variance %g", s);
-	char *in = c > 2 ? v[2] : "-";
-	char *out = c > 3 ? v[3] : "-";
-
-	int w, h, pd;
-	double *x = iio_read_image_double_vec(in, &w, &h, &pd);
-	double *y = xmalloc(w*h*pd*sizeof*y);
-
-	gblur(y, x, w, h, pd, s);
-
-	iio_save_image_double_vec(out, y, w, h, pd);
-	free(x);
-	free(y);
-	return EXIT_SUCCESS;
-}*/

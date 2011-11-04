@@ -34,9 +34,9 @@
 #include "adsf.h"
 #include "canny.h"
 
-// Gestion des bords par diffusion
+// out-of-image points
 int value(int x, int y, size_t nx, size_t ny) {
-	//Prolongement miroir
+	//Mirroring
 	int xt, yt;
 	if (x < 0) 
 		xt = -x;
@@ -55,26 +55,32 @@ int value(int x, int y, size_t nx, size_t ny) {
 	return xt + nx*yt;
 
 }
-// Interpolation bilinéaire spécifique.
-// 
+
+// Specific bilinear interpolation
 double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, int dir) {
 
 	double x1,x2,xt,y1,y2,yt;
 
+	// Here are the points where we would like to evaluate grad
 	xt = dir * cos(t);
 	yt = dir * sin(t);	
 
+	// Here are the points where we are able to evaluate grad	
 	x1 = floor(xt), x2 = x1 + 1;
 	y1 = floor(yt), y2 = y1 + 1;
 
+	//Interpolation in the x direction
+	// y = y1 :
+	double gradx1 = (x2 - xt) * grad[value(x + x1, y + y1, nx, ny)] 
+			+ (xt - x1) * grad[value(x + x2, y + y1, nx, ny)];
+	// y = y2 :
+	double gradx2 = (x2 - xt) * grad[value(x + x1, y + y2, nx, ny)] 
+			+ (xt - x1) * grad[value(x + x2, y + y2, nx, ny)];
 
-	double temp = grad[value(x+x1,y+y1,nx,ny)]*(x2-xt)*(y2-yt)
-		- grad[value(x+x2,y+y1,nx,ny)]*(x1-xt)*(y2-yt)
-		- grad[value(x+x1,y+y2,nx,ny)]*(x2-xt)*(y1-yt)
-		+ grad[value(x+x2,y+y2,nx,ny)]*(x1-xt)*(y1-yt);
+	// Interpolation in the y direction
 
-	return temp;
-
+	double gradxy = (y2 - yt) * gradx1 + (yt - y1) * gradx2;
+	return gradxy;
 }
 
 static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int seuil_bas,int seuil_haut) {
@@ -92,18 +98,18 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 				output[y*nx + x] = 2;
 			else 
 				output[y*nx + x] = 1;
-			//grad[y*nx+x]);
 		}
 	}
 }
 
 static const char *help =
-	"lost_train usage:\n"
+	"canny usage:\n"
 	"\t-h | --help          Display this help message\n"
 	"\t-v | --version	Display the version of this program\n"
 	"\t-s | --sigma   DBLE  Gaussian filter's variance\n"
 	"\t-lt	          DBLE  Low threshold\n"
 	"\t-ht	          DBLE 	High threshold\n"
+	"\t-a |	          	triggers higher-order gradient\n"
 	"\t-i | --input   FILE  Input file\n"
 	"\t-o | --output  FILE  Output file\n"
 	;
@@ -117,10 +123,10 @@ int main(int argc, char *const *argv)
 	size_t nx, ny;              /* data size */
 	char *input_file = '\0', *output_file = '\0'; //Name of the files
 	unsigned char *input = NULL, *output = NULL;        /* input/output data */
-	//s : sigma, variance du filtre
+	//s : sigma, filter variance 
 	double s = 2;
 	double seuil_bas=3, seuil_haut = 10;
-
+	bool accGrad = false;
 
 	// First step: parse command line argument and check that parameter
 	// syntax is valid, no check for parameter value vailidity here, just
@@ -133,7 +139,7 @@ int main(int argc, char *const *argv)
 			exit(EXIT_SUCCESS);
 		}
 
- 		if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
+ 		if (!strcmp(arg, "-v") || !strcmp(arg, "--version")) {
 			fprintf(stdout, "%s version " __DATE__ "\n", argv[0]);
 			exit(EXIT_SUCCESS);
 		}
@@ -173,6 +179,12 @@ int main(int argc, char *const *argv)
 			argc -= 2, argv += 2;
 			continue;
 		}
+		if (!strcmp(arg, "-a")) {
+			accGrad = true;		
+			argc -= 2, argv += 2;
+			continue;
+		}
+		error("Wrong agument : %s", arg);		
 	}
 
 	// Second step: validate the set of parameter to be used in training, we
@@ -192,61 +204,54 @@ int main(int argc, char *const *argv)
 
 	for(size_t d = 0 ; d < nx*ny ; d++)
 			in[d] = (double) input[d];
-
 	free(input);
+
 	double* data = xmalloc(sizeof(double) * nx * ny);
 
-	//filtrage gaussien	
+	// Gaussian filtering
 	gblur(data, in, nx, ny, 1, s);
-
 	free(in); 
 
 	double* grad = xmalloc(sizeof(double) * nx * ny);
 	double* theta = xmalloc(sizeof(double) * nx * ny);
-
-	//Valeur du gradient :
-
 	double hgrad,vgrad;
 
+	// Gradient value :
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
-			//Gradient horizontal
-			hgrad = data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)];
-			//Gradient vertical
-			vgrad = data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)];
-			//Norme (L1) du gradient
-			grad[y*nx+x] = fabs(hgrad) + fabs(vgrad); 
-			//Direction du gradient
-			// si vgrad est à zero :
-			// hgrad neg : -pi/2 sinon pi/2
-			// automatiquement fait par atan <3
-			//Mais on veut pas (sinon on a pas -pi/4)
-			if(vgrad==0)
-				theta[y*nx+x] = M_PI_2; 
-			else
-				theta[y*nx+x] = atan(hgrad / vgrad);
-
+			if(accGrad) {
+				//horizontal gradient 
+				hgrad[x + nx*y] = 2*(data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)]) + 
+						data[value(x+1,y+1,nx,ny)] - data[value(x-1,y+1,nx,ny)] +
+						data[value(x+1,y-1,nx,ny)] - data[value(x-1,y-1,nx,ny)];
+				//vertical gradient 
+				vgrad[x + nx*y] = 2*(data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)]) +
+					data[value(x+1,y+1,nx,ny)] - data[value(x+1,y-1,nx,ny)] +
+					data[value(x-1,y+1,nx,ny)] - data[value(x-1,y-1,nx,ny)] ;
+			}
+			else {
+				//horizontal gradient 
+				hgrad = data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)];
+				//vertical gradient 
+				vgrad = data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)];
+			}
+			// Gradient norm and dirextion
+			grad[y*nx+x] = hypot(hgrad,vgrad);
+			theta[y*nx + x] = atan2(vgrad,hgrad);
 		}
 	}
 
-	//Suppression des non-maxima
-
 	output = xmalloc(sizeof(unsigned char) * nx * ny);
 
-// seuil bas, on construit l'arbre, seuil haut
-// seuil haut puis seuil bas
-// les deux mélangés
-
-
+	//Suppression of non-maxima
 	maxima(grad,theta,output,nx,ny,seuil_bas,seuil_haut);
 	
 	int N = nx*ny;
 
 	int* t = xmalloc(sizeof(int) * nx * ny);
 
+	// Building the trees
 	adsf_begin(t,N);
-
-	// On construit les arbres
 	for(size_t x = 0 ; x < nx ; x++) 
 		for(size_t y = 0 ; y < ny ; y++) {
 			int d = x + nx * y;
@@ -260,22 +265,21 @@ int main(int argc, char *const *argv)
 			}
 		}
 
-	// On marque tous les arbres dont un noeuds est plus grand que le seuil_haut
+	// We mark every tree having a node higher than the high threshold
 	for(int d = 0 ; d < N ; d++)
 		if(output[d] == 2)
 			output[adsf_find(t,N,d)] = 2;
 
 	adsf_assert_consistency(t,N);
 	
-	// On supprime tous les arbres dont la racine n'est pas marquée
+	// We remove every tree which root is not marked
 	for(int d = 0 ; d < N ; d++) 
 		if(output[adsf_find(t,N,d)]  < 2) 
 			output[d] = 0;
 		else
 			output[d] = (char) -1;
-	
-
 	free(t);
+
 	free(grad);
 	free(theta);
 	free(data);
@@ -286,5 +290,4 @@ int main(int argc, char *const *argv)
 		error("the image could not be properly written");
 	free(output);
 	return EXIT_SUCCESS;
-
 }
