@@ -1,4 +1,4 @@
-% Color balance with saturation
+% Canny edge detector
 
 # ABOUT
 
@@ -13,17 +13,7 @@ This source code provides an implementation of the Canny filter, as described
 in IPOL in
     http://www.ipol.im/pub/algo/lmps_simplest_color_balance/
 
-* normalize_sort uses a simple sorting method
-* normalize_histo uses an histogram method, more efficient and
-  requiring less memory
-
-This program reads PNG image, then scale the pixel values by an
-affine function such that a user-defined number of pixels are scaled
-over the [0..255] limits. These pixels are replaced by the 0 or 255
-value, and these values are written as a PNG image.
-
-Only 8bit RGB PNG images are handled. Other PNG files are implicitly
-converted to 8bit color RGB.
+This program reads PNG image, then output a map of all edge points of the image.
 
 # REQUIREMENTS
 
