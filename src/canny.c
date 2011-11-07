@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <limits.h>
 #include <math.h>
@@ -221,11 +222,11 @@ int main(int argc, char *const *argv)
 		for(size_t y = 0 ; y < ny ; y++) {
 			if(accGrad) {
 				//horizontal gradient 
-				hgrad[x + nx*y] = 2*(data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)]) + 
-						data[value(x+1,y+1,nx,ny)] - data[value(x-1,y+1,nx,ny)] +
-						data[value(x+1,y-1,nx,ny)] - data[value(x-1,y-1,nx,ny)];
+				hgrad = 2*(data[value(x+1,y,nx,ny)] - data[value(x-1,y,nx,ny)]) + 
+					data[value(x+1,y+1,nx,ny)] - data[value(x-1,y+1,nx,ny)] +
+					data[value(x+1,y-1,nx,ny)] - data[value(x-1,y-1,nx,ny)];
 				//vertical gradient 
-				vgrad[x + nx*y] = 2*(data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)]) +
+				vgrad = 2*(data[value(x,y+1,nx,ny)] - data[value(x,y-1,nx,ny)]) +
 					data[value(x+1,y+1,nx,ny)] - data[value(x+1,y-1,nx,ny)] +
 					data[value(x-1,y+1,nx,ny)] - data[value(x-1,y-1,nx,ny)] ;
 			}
