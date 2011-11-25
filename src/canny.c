@@ -35,8 +35,9 @@
 #include "adsf.h"
 #include "canny.h"
 
-// out-of-image points
-int value(int x, int y, size_t nx, size_t ny) {
+// Mirroring
+
+int mirror(int x, int y, size_t nx, size_t ny) {
 	//Mirroring
 	int xt, yt;
 	if (x < 0) 
@@ -55,6 +56,33 @@ int value(int x, int y, size_t nx, size_t ny) {
 			yt = y;
 	return xt + nx*yt;
 
+}
+
+// extention of the border values
+int extend(int x, int y, size_t nx, size_t ny) {
+	//Mirroring
+	int xt, yt;
+	if (x < 0) 
+		xt = 0;
+	else 
+		if (x > (int)nx -1) 
+			xt = nx - 1;
+		else 
+			xt = x;
+	if (y < 0) 
+		yt = 0;
+	else 
+		if (y > (int)ny - 1) 
+			yt = ny - 1;
+		else 
+			yt = y;
+	return xt + nx*yt;
+
+}
+// out-of-image points
+int value(int x, int y, size_t nx, size_t ny) {
+	return extend(x,y,nx,ny);
+	//return mirror(x,y,nx,ny)
 }
 
 // Specific bilinear interpolation
