@@ -268,7 +268,7 @@ int main(int argc, char *const *argv)
 	output = xmalloc(sizeof(unsigned char) * nx * ny);
 
 	//Suppression of non-maxima
-	maxima(grad,theta,output,nx,ny,seuil_bas,seuil_haut);
+	maxima(grad,theta,output,nx,ny,low_thr,high_thr);
 	
 	int N = nx*ny;
 
