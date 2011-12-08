@@ -1,3 +1,27 @@
+/*
+ * Copyright 2011 IPOL Image Processing On Line http://www.ipol.im/
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @file tools.c
+ * @brief Miscelaneous tools for the Canny filter
+ *
+ * @author Vincent Maioli <vincent.maioli@crans.org>
+ */
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -8,10 +32,6 @@
 #include <fftw3.h>
 
 #include "canny.h"
-
-#ifndef M_PI
-#define M_PI		3.14159265358979323846	/* pi */
-#endif
 
 // this function prints an error message and aborts the program
 void error(const char *fmt, ...)
@@ -136,14 +156,7 @@ static void fill_2d_gaussian_image(double *gg, int w, int h, double inv_s)
 	FORJ(h) FORI(w) m += g[j][i];
 	FORJ(h) FORI(w) g[j][i] /= m;
 }
-/*
-static double average(double *x, int n)
-{
-	double r = 0;
-	FORI(n) r += x[i]/n;
-	return r;
-}
-*/
+
 // gaussian blur of a gray 2D image
 static void gblur_gray(double *y, double *x, int w, int h, double s)
 {

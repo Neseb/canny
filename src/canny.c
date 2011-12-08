@@ -36,9 +36,7 @@
 #include "canny.h"
 
 // Mirroring
-
 int mirror(int x, int y, size_t nx, size_t ny) {
-	//Mirroring
 	int xt, yt;
 	if (x < 0) 
 		xt = -x;
@@ -60,7 +58,6 @@ int mirror(int x, int y, size_t nx, size_t ny) {
 
 // extention of the border values
 int extend(int x, int y, size_t nx, size_t ny) {
-	//Mirroring
 	int xt, yt;
 	if (x < 0) 
 		xt = 0;
@@ -77,24 +74,23 @@ int extend(int x, int y, size_t nx, size_t ny) {
 		else 
 			yt = y;
 	return xt + nx*yt;
-
 }
-// out-of-image points
+
+// out-of-image points value computation
 int value(int x, int y, size_t nx, size_t ny) {
+	// We use the same value as the border one
 	return extend(x,y,nx,ny);
 	//return mirror(x,y,nx,ny)
 }
 
 // Specific bilinear interpolation
 double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, int dir) {
-
 	double x1,x2,xt,y1,y2,yt;
 
 	// Here are the points where we would like to evaluate grad
 	xt = dir * cos(t);
 	yt = dir * sin(t);	
-
-	// Here are the points where we are able to evaluate grad	
+	// and the points where we are able to evaluate grad	
 	x1 = floor(xt), x2 = x1 + 1;
 	y1 = floor(yt), y2 = y1 + 1;
 
@@ -105,14 +101,13 @@ double bilin(double* grad, double t, size_t x, size_t y, size_t nx, size_t ny, i
 	// y = y2 :
 	double gradx2 = (x2 - xt) * grad[value(x + x1, y + y2, nx, ny)] 
 			+ (xt - x1) * grad[value(x + x2, y + y2, nx, ny)];
-
 	// Interpolation in the y direction
-
 	double gradxy = (y2 - yt) * gradx1 + (yt - y1) * gradx2;
 	return gradxy;
 }
 
-static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int seuil_bas,int seuil_haut) {
+//Computation of the maxima of the gradient
+static void maxima(double* grad, double *theta, unsigned char *output, size_t nx, size_t ny, int low_thr,int high_thr) {
 	for(size_t x = 0 ; x < nx ; x++) {
 		for(size_t y = 0 ; y < ny ; y++) {
 			double t = theta[y*nx + x];
@@ -120,10 +115,11 @@ static void maxima(double* grad, double *theta, unsigned char *output, size_t nx
 			double prev = bilin(grad,t,x,y,nx,ny,-1);			
 			double next = bilin(grad,t,x,y,nx,ny,1);			
 			double now = grad[y*nx+x];
-
-			if ((now <= prev) || (now <= next) || (now <= seuil_bas))
+			
+			if ((now <= prev) || (now <= next) || (now <= low_thr))
+				// If it is not a local maximum or is below the low threshold, discard
 				output[y*nx + x] = 0;
-			else if (now >= seuil_haut)
+			else if (now >= high_thr)
 				output[y*nx + x] = 2;
 			else 
 				output[y*nx + x] = 1;
@@ -149,12 +145,11 @@ static const char *help =
  */
 int main(int argc, char *const *argv)
 {
-	size_t nx, ny;              /* data size */
-	char *input_file = '\0', *output_file = '\0'; //Name of the files
-	unsigned char *input = NULL, *output = NULL;        /* input/output data */
-	//s : sigma, filter variance 
-	double s = 2;
-	double seuil_bas=3, seuil_haut = 10;
+	size_t nx, ny;		// data size
+	char *input_file = '\0', *output_file = '\0';	//Name of the files
+	unsigned char *input = NULL, *output = NULL; 	// input/output data
+	double s = 2; 		//s : sigma, filter variance 
+	double low_thr=3, high_thr = 10;		// Thresholds
 	bool accGrad = false;
 
 	// First step: parse command line argument and check that parameter
@@ -197,14 +192,14 @@ int main(int argc, char *const *argv)
 		if (!strcmp(arg, "-lt")) {
 			if (argc == 1)
 				error("missing value for %s", arg);
-			seuil_bas = atol(argv[1]);
+			low_thr = atol(argv[1]);
 			argc -= 2, argv += 2;
 			continue;
 		}
 		if (!strcmp(arg, "-ht")) {
 			if (argc == 1)
 				error("missing value for %s", arg);
-			seuil_haut = atol(argv[1]);
+			high_thr = atol(argv[1]);
 			argc -= 2, argv += 2;
 			continue;
 		}
@@ -224,7 +219,7 @@ int main(int argc, char *const *argv)
 	if (output_file[0] == '\0')
 		error("Missing output file");
 		
-	/* read the PNG image */
+	// read the PNG image
 	input = read_png_u8_rgb(input_file, &nx, &ny);
 	if (input == NULL)
 		error("the image could not be properly read");
@@ -288,6 +283,7 @@ int main(int argc, char *const *argv)
 				for(int ex = -1 ; ex < 2 ; ex++)
 				for(int ey = -1 ; ey < 2 ; ey++) {
 					int ed = value(x+ex,y+ey,nx,ny);
+					// If the neighbour is marked, we make the union
 					if(output[ed])	                                       
 						adsf_union(t,N,d,ed);
 				}
@@ -306,6 +302,7 @@ int main(int argc, char *const *argv)
 		if(output[adsf_find(t,N,d)]  < 2) 
 			output[d] = 0;
 		else
+			// Very high value so it can be seen
 			output[d] = (char) -1;
 	free(t);
 
