@@ -9,9 +9,8 @@
 # OVERVIEW
 
 
-This source code provides an implementation of the Canny filter, as described 
-in IPOL in
-    http://www.ipol.im/pub/algo/lmps_simplest_color_balance/
+This source code provides an implementation of the Canny filter, as presented for publication 
+in IPOL.
 
 This program reads PNG image, then output a map of all edge points of the image.
 
